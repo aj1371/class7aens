@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Class 7-A | ENS Sharjah</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js"></script>
+  <style>
+    body { font-family: Arial; margin:0; background:#f4f6f9; }
+    header { background:#0d1b2a; color:white; padding:15px; text-align:center; }
+    .container { padding:20px; }
+    .card { background:white; padding:15px; margin:15px 0; border-radius:8px; }
+    input, textarea { width:100%; padding:8px; margin:8px 0; }
+    button { padding:8px 15px; background:#0077b6; color:white; border:none; cursor:pointer; }
+    img { max-width:100px; border-radius:50%; }
+  </style>
+</head>
+<body>
+
+<header>
+  Class 7-A | Emirates National School Sharjah
+</header>
+
+<div class="container">
+
+  <!-- Login/Register -->
+  <div id="authSection">
+    <h3>Student Login / Register</h3>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="register()">Register</button>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- Main content after login -->
+  <div id="mainSection" style="display:none;">
+
+    <h3>Profile Picture</h3>
+    <input type="file" id="profilePic">
+    <button onclick="uploadProfile()">Upload</button>
+    <div id="profileDisplay"></div>
+
+    <div class="card">
+      <h3>Create Post</h3>
+      <textarea id="postText" placeholder="Write something..."></textarea>
+      <button onclick="createPost()">Post</button>
+    </div>
+
+    <div id="posts"></div>
+
+    <div class="card">
+      <h3>Class Chat</h3>
+      <input type="text" id="chatMessage" placeholder="Type message...">
+      <button onclick="sendChat()">Send</button>
+      <div id="chatBox"></div>
+    </div>
+
+    <div class="card">
+      <h3>Feedback</h3>
+      <textarea id="feedbackText" placeholder="Write feedback..."></textarea>
+      <button onclick="sendFeedback()">Submit</button>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  // 🔥 REPLACE WITH YOUR FIREBASE CONFIG
+  const firebaseConfig = {
+    apiKey: "AIzaSyXXX-XXXXXXXXXXXXXX",
+    authDomain: "class7a-ens.firebaseapp.com",
+    projectId: "class7a-ens",
+    storageBucket: "class7a-ens.appspot.com",
+    messagingSenderId: "1234567890",
+     appId: "1:1234567890:web:abcdef123456"
+  };
+
+  // Init Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+
+  // Elements
+  const authSection = document.getElementById("authSection");
+  const mainSection = document.getElementById("mainSection");
+  const email = document.getElementById("email");
+  const password = document.getElementById("password");
+  const posts = document.getElementById("posts");
+  const chatBox = document.getElementById("chatBox");
+  const profilePic = document.getElementById("profilePic");
+  const profileDisplay = document.getElementById("profileDisplay");
+  const postText = document.getElementById("postText");
+  const chatMessage = document.getElementById("chatMessage");
+  const feedbackText = document.getElementById("feedbackText");
+
+  // Register
+  function register() {
+    const emailVal = email.value;
+    const passVal = password.value;
+
+    auth.createUserWithEmailAndPassword(emailVal, passVal)
+      .then(() => {
+        alert("Registration Successful! 🎉");
+        email.value = "";
+        password.value = "";
+      })
+      .catch(error => alert("Error: " + error.message));
+  }
+
+  // Login
+  function login() {
+    const emailVal = email.value;
+    const passVal = password.value;
+
+    auth.signInWithEmailAndPassword(emailVal, passVal)
+      .then(() => {
+        alert("Login Successful! ✅");
+        email.value = "";
+        password.value = "";
+      })
+      .catch(error => alert("Error: " + error.message));
+  }
+
+  // Auth state
+  auth.onAuthStateChanged(user => {
+    if(user){
+      authSection.style.display = "none";
+      mainSection.style.display = "block";
+      loadPosts();
+      loadChat();
+    } else {
+      authSection.style.display = "block";
+      mainSection.style.display = "none";
+    }
+  });
+
+  // Upload profile
+  function uploadProfile() {
+    const file = profilePic.files[0];
+    if(!file) return alert("Select a file first!");
+
+    const ref = storage.ref("profiles/" + auth.currentUser.uid + "/" + file.name);
+    ref.put(file).then(snapshot => {
+      snapshot.ref.getDownloadURL().then(url => {
+        profileDisplay.innerHTML = `<img src="${url}">`;
+        alert("Profile Uploaded! 😎");
+      });
+    }).catch(error => alert("Upload Error: " + error.message));
+  }
+
+  // Create post
+  function createPost() {
+    if(postText.value.trim() === "") return;
+    db.collection("posts").add({
+      text: postText.value,
+      user: auth.currentUser.email,
+      time: Date.now()
+    });
+    postText.value = "";
+  }
+
+  // Load posts newest first
+  function loadPosts() {
+    db.collection("posts").orderBy("time","desc")
+      .onSnapshot(snapshot => {
+        posts.innerHTML = "";
+        snapshot.forEach(doc => {
+          posts.innerHTML += `
+            <div class="card">
+              <b>${doc.data().user}</b>
+              <p>${doc.data().text}</p>
+            </div>`;
+        });
+      });
+  }
+
+  // Send chat
+  function sendChat() {
+    if(chatMessage.value.trim() === "") return;
+    db.collection("chat").add({
+      message: chatMessage.value,
+      user: auth.currentUser.email,
+      time: Date.now()
+    });
+    chatMessage.value = "";
+  }
+
+  // Load chat newest first
+  function loadChat() {
+    db.collection("chat").orderBy("time","asc")
+      .onSnapshot(snapshot => {
+        chatBox.innerHTML = "";
+        snapshot.forEach(doc => {
+          chatBox.innerHTML += `<p><b>${doc.data().user}:</b> ${doc.data().message}</p>`;
+        });
+      });
+  }
+
+  // Send feedback
+  function sendFeedback() {
+    if(feedbackText.value.trim() === "") return;
+    db.collection("feedback").add({
+      text: feedbackText.value,
+      user: auth.currentUser.email,
+      time: Date.now()
+    });
+    feedbackText.value = "";
+    alert("Feedback Sent! 👍");
+  }
+
+</script>
+
+</body>
+</html>
